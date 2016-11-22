@@ -1,0 +1,319 @@
+---
+title: "MLA4: It’s tough to make predictions, especially about the future."
+author: "Mariano Dominguez"
+date: "August 25, 2015"
+output: pdf_document
+---
+***
+### Overview of Supervised Learning
+
+* There is a set of variables that might be denoted as **inputs**,
+which are measured or preset. These have some influence on one or more
+**outputs**. 
+
+* The **goal** is to use the inputs **to predict** the values of the outputs.
+
+* In the statistical literature the inputs are often called **predictors**, a term 
+that we will use interchangeably with inputs, and more classically the **independent  variables**.
+
+* In the pattern recognition literature the term **features** is preferred. The outputs
+are called the **responses**, or classically the **dependent variables**
+
+****
+### Linear Models and Least Squares
+
+* The linear model has been a mainstay of statistics for over the past 30 years
+and remains one of the most imortant tools. Gievn a vector of inputs 
+ $X^{T}=(X_{1}, X_{2}, ..., X_{p})$, we predict the output $Y$ via the model:
+ $\hat{Y} = \hat{ \beta_{0} } + \sum_{j=1}^{p} X_{j} \hat{ \beta_{j}}$
+
+The term $\hat{\beta_{0}}$ is the intercept, also known as the **bias** in machine learning.
+Often it is convenient to include the constant variable 1 in $X$, include $\hat{\beta_{0}}$
+in the vector of coefficients $\hat{\beta}$, and then write the linear model in vector form
+as an inner product: $\hat{Y}=X^{T}\hat{\beta}$.
+
+Specifying statistical models like regression models is quite easy in R. An
+R formula is written as "y ~ model", where "y" will be the response variable
+and "model" will be all of the predictors that are to be included in the model.
+
+We will use the linear model framework, hence we will be using the lm function.
+
+*** 
+### Simple Linear Regression
+
+We will use 92 stars from the Hipparcos dataset that are associated with the Hyades.
+Based on the values of right ascension, declination, principal motion of right ascension,
+and principal motion of declination. We exclude one additional star
+with a large error of parallax measurement:
+
+```{r}
+loc <- "http://astrostatistics.psu.edu/datasets/"
+hip <- read.table(paste(loc,"HIP_star.dat",sep=""),
+header=T,fill=T)
+attach(hip)
+filter1 <- (RA>50 & RA<100 & DE>0 & DE<25)
+filter2 <- (pmRA>90 & pmRA<130 & pmDE>-60 & pmDE< -10)
+filter <- filter1 & filter2 & (e_Plx<5)
+sum(filter)
+```
+Here is a quick example of linear regression relating $B-V$ to $\log(L)$.
+
+```{r}
+mainseqhyades <- filter & (Vmag>4 | B.V<0.2)
+logL <- (15-Vmag-5 * log10(Plx)) / 2.5
+x <- logL[mainseqhyades]
+y <- B.V[mainseqhyades]
+plot(x,y)
+regline <- lm(y~x)
+abline(regline,lwd=2,col=2)
+summary(regline)
+points(mean(x),mean(y),col=3,pch=20,cex=3)
+```
+Note that the regression line passes exactly through the point (xbar, ybar).
+
+Here is a regression of y on exp(-x/4):
+```{r}
+plot(x,y)
+newx <- exp(-x/4)
+regline2 <- lm(y~newx)
+xseq <- seq(min(x),max(x),len=250)
+lines(xseq,regline2$coef%*%rbind(1,exp(-xseq/4)),
+lwd=2,col=3)
+```
+
+*** Task
+Let's now switch to a new dataset, one that comes from NASA's Swift
+satellite. This dataset is described at http://www.astrostatistics.psu.
+edu/datasets/GRB_afterglow.html. The statistical problem at hand is
+modeling the X-ray afterglow of gamma-ray bursts. First, read in the dataset:
+
+```{r}
+grb <- read.table(paste(loc,"GRB_afterglow.dat",sep=""),
+header=T,skip=1)
+```
+We use the skip=1 option since the raw file has some ancillary information
+entered on the first line. We will focus on the first two columns, which are
+times and X-ray fuxes:
+
+```{r}
+plot(grb[,1:2],xlab="time",ylab="flux")
+```
+
+This plot is very hard to interpret because of the scales, so let's take the
+natural log of each variable:
+
+```{r}
+x <- log(grb[,1])
+y <- log(grb[,2])
+plot(x,y,xlab="log time",ylab="log flux")
+```
+
+The relationship looks roughly linear, which is also substantiated by a test
+of the correlation coeficient:
+
+```{r}
+cor.test(x,y)
+```
+
+So let's try a linear model. **Exercise 1**: compute the linear regression parameters.
+
+***
+### Classification using nearest neighbors
+
+NNC are defined by characteristic of classifying unlabeled examples by assigning
+them to the class of the most similar labeled examples. They have been used succesfully for:
+  + computer vission applications, including optical character recognition and facial recognition in both images and video, take a look at www.opencv.org.
+  + predicting whether a person enjoys a movie which he/she has been recommended (as in the Netflix challenge)
+  + Identifying patterns in genetic data, for use in detecting specific proteins or diseases.
+
+In general NNC classifiers are well suited where relationships among features and the target classes are complicated , numerous or otherwise extremely difficult to understand.
+
+***
+### The kNN algorithm strenths:
+  + Simple and effective
+  + Make no ssumption about the underlying data
+  + Fast training phase
+### kNN algorithm weakness:
+  + Does not produce a model
+  + Slow classification phase
+  + Requires a large amount of memory
+  + missing data requires additional processing
+
+***
+### kNN
+* This algorithm begins with a training dataset made up of examples that are classified into several categories, as labeled by a nominal variable.
+* Assume that we have a test dataset containing unlabeled examples that otherwisr have the same features as the training data.
+* For each record in the test dataset, kNN identifies k records in the training data that are the "nearest" in similarity, where k is an integer specified in advance.
+* Locating a point nerest neighbors requires a **distance function** like the **Euclidian distance** or the **Manhattan distance**, read about this using ?dist.
+
+* The unlabeled test instance is assigned the class of the majority of the k-neigbors.
+
+*** 
+###Choosing an appropiate k.
+Decide how many neighbors to use for kNN determines how well the model
+will generalize to future data The balance between overfitting and underfitting
+the training data is known as the **bias-variance tradeoff**.
+
+Choosing a large $k$ reduces the impact of variance caused by noisy data, but
+can bias the learner such that it runs the risk of ignoring small important patterns.
+
+The following figure illustrates more generally how the **decision boundary**
+(depicted by a dashed line) is affected by larger and smaller $k$ values.
+
+![](/run/media/mardom/KINGSTON/ml-class04/number-of-knn.png)
+
+***
+###  Preparing the data for use.
+
+* Tip: A less common, but interesting solution to this problem is to
+choose a larger $k$, but apply a **weighted voting** process in which
+the vote of closed neighbours is considered more authorative than the vote 
+of far away neighbors.
+
+ Features are typically transformed to a standart range prior to apply
+the kNN algorithm. THe rationale for this step is that the distance formula
+is dependent in how the features are measured.
+
+ In particular, if certain features have much larger values than others,
+the distances measurements will be strongly dominated by the larger values.
+
+***
+### Rescaling the features
+
+* What we need is a way of shrinking the varius features such that each one
+contributes relativelly equally to the distance formula.
+
+The traditional method for kNN is **minmax normalization**. This process
+transform a feature such that all of its values fall in a range between 0 and 1.
+
+Another common tranformation is called **z-score standardization**. Substrac the mean
+value of each feature and divide by its standard deviation. This scores fall in an 
+unbounded range of negative and positive numbers.
+
+The Euclidean distance formula is not defined for nominal data, therefore we need to convert
+nominal feature into a numeric format. For instance **dummy coding**.
+
+Classification algorithms based on the kNN are considered lazy learning algorithms
+because no abstraction occurs.
+
+***
+### Diagnosing Breast Cancer
+
+* We will investigate the utility of ML for detecting cancer by applying
+kNN algorithm to measurements of biopsed cells from women with abnormal 
+breast masses.
+
+We will utilize the "Breast Cancer Winscosin Diagnostic" dataset from the UCI
+ML Repository http://archive.ics.uci.edu/ml which includes 569 examples of
+cancer biopsies each with 32 features (differents characteristics of the cell nuclei)
+and the diagnosis coded as M(alignant) or B(enign)
+
+```{r}
+data <- read.csv("http://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/wdbc.data",header=FALSE)
+data <- data[-1]
+str(data)
+```
+
+Regardless the machine learning method, ID variables should always be excluded. Neglecting
+to do could lead to erroneous findings because the ID can be used to "predict" each and likely
+suffer from overfitting.
+
+The next variable, diagnosis is of particular interest, as is the outcome we hope to predict 
+```{r}
+table(data$V2)
+```
+Also take a look to the rest of variables, ranges etc.
+
+```{r}
+summary(data)
+```
+
+***
+### Data Tranformation
+
+We need to create a normalize() function in R
+
+```{r}
+normalize <- function(x) {
+  return ((x-min(x))/(max(x)-min(x)))
+}
+```
+After executing the previus code, the function is available for use.
+Test the function in some vectors.
+
+```{r}
+normalize(c(1,2,3,4,5))
+normalize(c(10,20,30,40,50))
+```
+
+We can not apply the function ot the numeric features in the dataframe.
+The lapply() function of R takes a list and applies a function to each 
+element of the list.
+
+```{r}
+data_n <- as.data.frame(lapply(data[2:31], normalize))
+summary(data_n$V3)
+summary(data_n$V8)
+```
+
+Bingo! In absence of new laboratory data, we will simulate this scenario
+by dividing our data into a **training dataset** that will we used to build
+the kNN model and a **test dataset** that we will use to estimate the predictive
+accuracy of the model.
+
+```{r}
+data_train <- data_n[1:469, ]
+data_test  <- data_n[470:569, ] 
+```
+
+Notice that such datasets should be representative of the full set of data, i.e. **random
+sampling methods!**
+
+***
+### Training a classifier
+
+We exclude the target variable, but we will need to store the
+class these class labels in factor vectors
+
+```{r}
+data_train_labels <- data[1:469, 1]
+data_test_labels  <- data[470:569, 1]
+```
+
+For the **kNN algorithm** the training phase actually **involves no mode buiding** 
+To classify our test instances we will use the class package with Euclidean distance,
+install it!
+
+The test instance is classified by taking a vote among the k-nearest neighbors.
+A tie is broken at random. Now we can use the knn() function to classify the test data.
+
+```{r}
+data_test_pred <- knn(train=data_train, test=data_test, cl=data_train_labels, k=21)
+```
+
+***
+### Evaluating model performance
+
+* The next step of the process is to evaluate how well the predicted classes
+in data_test_pred match up the known values in data_test_labels vector.
+
+```{r}
+library(gmodels)
+CrossTable(x=data_test_labels, y=data_test_pred, prop.chisq = FALSE)
+```
+
+In the top left cell are the **true negative results**, the bottom down cell
+indicates the **true positive results** were the classifier and the clinically
+determined label agree that the mass is malignant. $98\%$ accuracy for a few lines
+of R!
+
+* Problems:
+
+  + Improve the performance (show the summary result) using z-score standardization
+  provided by the R scale() function.
+
+  + Test for alternative values of k=1, 5, 11, 15, 21, 27 . Report the number of false negatives and  positives and select the best value of k. Check if the result change using random patients to test, discuss.
+
+***
+
+
